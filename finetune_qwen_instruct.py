@@ -24,7 +24,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 # --- 2. 数据集加载 ---
-data_file = "./data/smarthome_data/train_smarthome.json"
+data_file = "./data/smarthome_data/train_complex.json"
 
 if not os.path.exists(data_file):
     raise FileNotFoundError(f"错误：找不到数据集文件 '{data_file}'")
@@ -79,11 +79,11 @@ peft_config = LoraConfig(
 )
 
 # --- 6. 训练参数 ---
-output_dir = "./finetune_model/qwen3_0.6B_smarthome_instruct"
+output_dir = "./finetune_model/qwen3_0.6B_smarthome_mutil_instruct"
 
 training_args = TrainingArguments(
     output_dir=output_dir,
-    per_device_train_batch_size=4,
+    per_device_train_batch_size=2,
     gradient_accumulation_steps=4,
     learning_rate=2e-4,
     num_train_epochs=3,
@@ -101,7 +101,7 @@ trainer = SFTTrainer(
     model=model,
     train_dataset=dataset,
     peft_config=peft_config,
-    max_seq_length=512,
+    max_seq_length=512,  # 512长度足够 长任务使用1024
     tokenizer=tokenizer,
     args=training_args,
     dataset_text_field="text", # 明确告诉 Trainer 训练哪一列

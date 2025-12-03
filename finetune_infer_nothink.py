@@ -7,14 +7,16 @@ from peft import PeftModel
 # --- 1. 路径配置 ---
 base_model_path = "./qwen3-0.6B"
 # 指向你用新数据训练出来的 LoRA 路径
-lora_path = "./finetune_model/qwen3_0.6B_smarthome_instruct" 
+lora_path = "./finetune_model/qwen3_0.6B_smarthome_mutil_instruct" 
 
-# --- 2. 关键：定义全局统一指令 (必须与训练时完全一致) ---
+# --- 2. 全局统一指令 ---
 UNIFIED_INSTRUCTION = "智能家居中控：提取用户指令中的实体与意图，输出标准的JSON控制代码。"
 
 print("正在加载模型...")
+# 加载 Tokenizer
 tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
 
+# 加载基座 (使用 bfloat16 或 float16)
 base_model = AutoModelForCausalLM.from_pretrained(
     base_model_path,
     device_map="auto",
@@ -22,41 +24,36 @@ base_model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=True
 )
 
+# 加载 LoRA
 model = PeftModel.from_pretrained(base_model, lora_path)
 model.eval()
 
-# --- 3. 核心：解析函数 (保持不变，用于去除 <think>) ---
+# --- 3. 核心：解析函数 (已简化) ---
+# 因为关闭了 thinking，不需要再找 </think> 标签了，直接解码即可
 def parse_output(generated_ids, input_len):
-    output_ids = generated_ids[0][input_len:].tolist()
-    think_end_token = 151668 
+    # 1. 截取模型新生成的 token
+    new_tokens = generated_ids[0][input_len:]
     
-    try:
-        reversed_ids = output_ids[::-1]
-        index_from_end = reversed_ids.index(think_end_token)
-        split_index = len(output_ids) - index_from_end
-    except ValueError:
-        split_index = 0
-
-    content = tokenizer.decode(output_ids[split_index:], skip_special_tokens=True).strip()
+    # 2. 直接解码
+    content = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
     return content
 
-# --- 4. 辅助：JSON 提取器 (升级版：兼容 List 和 Dict) ---
+# --- 4. 辅助：JSON 提取器 (兼容 List 和 Dict) ---
 def extract_json(text):
-    # 1. 尝试直接解析整个文本
+    # 1. 尝试直接解析
     try:
         return json.loads(text)
     except:
         pass
 
-    # 2. 正则提取：现在需要同时匹配 [...] 和 {...}
-    # 优先寻找列表（因为多任务是列表），如果没有再找对象
+    # 2. 正则提取 (优先找列表，再找对象)
     try:
-        # 寻找最外层的列表 [...]
+        # 寻找列表 [...]
         match_list = re.search(r'\[.*\]', text, re.DOTALL)
         if match_list:
             return json.loads(match_list.group())
         
-        # 如果没找到列表，寻找最外层的对象 {...}
+        # 寻找对象 {...}
         match_dict = re.search(r'\{.*\}', text, re.DOTALL)
         if match_dict:
             return json.loads(match_dict.group())
@@ -65,9 +62,8 @@ def extract_json(text):
         
     return None
 
-# --- 5. 推理主函数 (接口简化) ---
+# --- 5. 推理主函数 (添加了 enable_thinking=False) ---
 def predict(user_input):
-    # 注意：这里直接使用全局的 UNIFIED_INSTRUCTION，不再需要外部传入
     if user_input:
         user_content = f"任务：{UNIFIED_INSTRUCTION}\n指令：{user_input}"
     else:
@@ -78,42 +74,44 @@ def predict(user_input):
         {"role": "user", "content": user_content}
     ]
 
-    text = tokenizer.apply_chat_template(
-        messages, 
-        tokenize=False, 
-        add_generation_prompt=True
-    )
+    # === 关键修改 ===
+    try:
+        text = tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False, 
+            add_generation_prompt=True,
+            enable_thinking=False  # 显式关闭思考模式
+        )
+    except TypeError:
+        # 兼容性处理：如果当前 tokenizer 版本不支持 enable_thinking 参数，则回退
+        # (通常意味着该模型版本本身就不带 thinking 功能，或者 transformers 版本较老)
+        text = tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False, 
+            add_generation_prompt=True
+        )
 
     model_inputs = tokenizer([text], return_tensors="pt").to(base_model.device)
 
     with torch.no_grad():
         generated_ids = model.generate(
             **model_inputs,
-            max_new_tokens=1024, # 增加长度，防止多任务输出被截断
-            temperature=0.1,  # 低温更稳定
+            max_new_tokens=1024, 
+            temperature=0.1, # 保持低温，增加 JSON 稳定性
             top_p=0.9,
             do_sample=True
         )
 
     return parse_output(generated_ids, model_inputs.input_ids.shape[1])
 
-# --- 6. 高难度测试集 ---
-print("\n=== 智能家居中控测试 (多任务/复合意图版) ===\n")
+# --- 6. 测试部分 ---
+print("\n=== 智能家居中控测试 (Think模式已关闭) ===\n")
 
 test_cases = [
-    # 1. 基础单任务
     "帮我把卧室的吸顶灯关掉。",
-    
-    # 2. 复合属性控制 (色温 + 亮度)
     "把书房的灯带调成暖光，顺便调暗一点。",
-    
-    # 3. 模糊推理
     "我觉得客厅有点太冷了。",
-    
-    # 4. 多任务串联 (2个任务)
     "打开卧室空调，然后把窗帘拉上。",
-    
-    # 5. 极限测试 (3-4个任务，跨设备)
     "我要出门了，把客厅灯关了，关闭空调，另外让扫地机器人去打扫厨房。"
 ]
 
@@ -123,7 +121,9 @@ for i, input_text in enumerate(test_cases):
     
     # 推理
     result_text = predict(input_text)
-    print(f"模型原始输出: {result_text}")
+    
+    # 打印原始输出，确认没有 <think> 标签了
+    # print(f"DEBUG(原始输出): {result_text}") 
     
     # 提取 JSON
     json_data = extract_json(result_text)
@@ -131,7 +131,7 @@ for i, input_text in enumerate(test_cases):
     if json_data is not None:
         print("JSON 解析: ✅ 成功")
         
-        # 结果归一化：如果是单个字典，转成列表方便统一打印
+        # 归一化为列表
         if isinstance(json_data, dict):
             task_list = [json_data]
         elif isinstance(json_data, list):
@@ -139,7 +139,6 @@ for i, input_text in enumerate(test_cases):
         else:
             task_list = []
 
-        # 遍历打印每个动作
         print(f"解析出 {len(task_list)} 个动作:")
         for idx, task in enumerate(task_list):
             target = task.get('target', 'N/A')
@@ -148,6 +147,7 @@ for i, input_text in enumerate(test_cases):
             print(f"  [动作 {idx+1}] 设备: {target:<15} | 操作: {action:<12} | 参数: {value}")
             
     else:
-        print("JSON 解析: ❌ 失败")
+        print(f"JSON 解析: ❌ 失败")
+        print(f"失败输出内容: {result_text}")
     
     print("-" * 50)
