@@ -3,10 +3,11 @@ import json
 import re
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
+import time
 
 # --- 1. 路径配置 ---
 base_model_path = "./qwen3-0.6B"
-# 指向你用新数据训练出来的 LoRA 路径
+#  LoRA 微调后保存模型的路径
 lora_path = "./finetune_model/qwen3_0.6B_smarthome_mutil_instruct" 
 
 # --- 2. 全局统一指令 ---
@@ -19,7 +20,7 @@ tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=Tru
 # 加载基座 (使用 bfloat16 或 float16)
 base_model = AutoModelForCausalLM.from_pretrained(
     base_model_path,
-    device_map="auto",
+    device_map="auto",  # gpu->auto cpu->'cpu'
     torch_dtype=torch.float16,
     trust_remote_code=True
 )
@@ -28,8 +29,8 @@ base_model = AutoModelForCausalLM.from_pretrained(
 model = PeftModel.from_pretrained(base_model, lora_path)
 model.eval()
 
-# --- 3. 核心：解析函数 (已简化) ---
-# 因为关闭了 thinking，不需要再找 </think> 标签了，直接解码即可
+# --- 3. 核心：解析函数  ---
+# 关闭了 thinking，不需要再找 </think> 标签了，直接解码即可
 def parse_output(generated_ids, input_len):
     # 1. 截取模型新生成的 token
     new_tokens = generated_ids[0][input_len:]
@@ -96,7 +97,7 @@ def predict(user_input):
     with torch.no_grad():
         generated_ids = model.generate(
             **model_inputs,
-            max_new_tokens=1024, 
+            max_new_tokens=1024, # 增加长度，防止多任务输出被截断
             temperature=0.1, # 保持低温，增加 JSON 稳定性
             top_p=0.9,
             do_sample=True
@@ -120,7 +121,11 @@ for i, input_text in enumerate(test_cases):
     print(f"用户指令: {input_text}")
     
     # 推理
+    start_time = time.time()
     result_text = predict(input_text)
+    print(f"模型输出结果为: {result_text}")
+    end_time = time.time()
+    print(f"测试案例 {i+1} 的模型推理时间为: {end_time - start_time:.2f} 秒")
     
     # 打印原始输出，确认没有 <think> 标签了
     # print(f"DEBUG(原始输出): {result_text}") 

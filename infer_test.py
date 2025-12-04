@@ -1,4 +1,5 @@
 from modelscope import AutoModelForCausalLM, AutoTokenizer
+import time
 
 model_name = "./qwen3-0.6B"
 
@@ -11,10 +12,11 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 
 # prepare the model input
-prompt = "给我介绍一下强化学习的基本概念和应用场景。/no_think"
+prompt = "帮我把卧室的吸顶灯关掉。/no_think"
 messages = [
     {"role": "user", "content": prompt}
 ]
+start_time = time.time()
 text = tokenizer.apply_chat_template(
     messages,
     tokenize=False,
@@ -29,7 +31,8 @@ generated_ids = model.generate(
     max_new_tokens=32768
 )
 output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist() 
-
+end_time = time.time()
+print(f"Inference time: {end_time - start_time:.2f} s")
 # parsing thinking content
 try:
     # rindex finding 151668 (</think>)
