@@ -5,7 +5,10 @@ import random
 UNIFIED_INSTRUCTION = "智能家居中控：提取用户指令中的实体与意图，输出标准的JSON控制代码。"
 
 # 定义数据总量 (为了保证覆盖度，建议稍微多一点)
-TOTAL_SAMPLES = 400 
+BASE_SAMPLES = 200  # 基础样本数
+CCT_SAMPLES = 400   # 色温+亮度样本数
+COMPLEX_SAMPLES = 300 # 复杂多任务样本数
+# TOTAL_SAMPLES = 1000 
 dataset = []
 
 # --- 资源池 ---
@@ -68,7 +71,7 @@ def get_atomic_command():
 
 # --- 第一部分：基础原子能力 (100条) ---
 # 保持基础能力的稳固
-for _ in range(100):
+for _ in range(BASE_SAMPLES):
     txt, json_obj = get_atomic_command()
     dataset.append({
         "instruction": UNIFIED_INSTRUCTION,
@@ -81,14 +84,14 @@ for _ in range(100):
 # 逻辑：这是一条自然语言对应两个动作 (set_color + set_brightness)
 brightness_words = [("调亮一点", "up"), ("调暗一点", "down"), ("最亮", "100"), ("微亮", "20")]
 
-for _ in range(100):
+for _ in range(CCT_SAMPLES):
     room = random.choice(rooms)
     device = random.choice(devices)
     color = random.choice(colors)
     bright_txt, bright_val = random.choice(brightness_words)
     
     # 组合语料： "把卧室吸顶灯调成暖光，并且调暗一点"
-    connectors = ["，同时", "，并且", "，而且", "，顺便"]
+    connectors = ["，同时", "，并且", "，而且", "，顺便", "，再", "，还要"]
     input_text = f"把{room}的{device}调成{color}{random.choice(connectors)}{bright_txt}。"
     
     # 输出 JSON 列表：包含两个动作
@@ -105,9 +108,9 @@ for _ in range(100):
 
 # --- 第三部分：[高难度] 2-5 个任务的复杂长指令 (200条) ---
 # 逻辑：随机抽取 N 个任务，拼接句子，合并列表
-connectors = ["，然后", "，接着", "，", "，还要", "，别忘了"]
+connectors = ["，然后", "，接着", "，", "，还要", "，别忘了", "，同时"]
 
-for _ in range(200):
+for _ in range(COMPLEX_SAMPLES):
     # 随机决定任务数量：2 到 5 个
     num_tasks = random.randint(2, 5)
     
@@ -139,7 +142,7 @@ for _ in range(200):
 
 # --- 保存与验证 ---
 random.shuffle(dataset)
-file_path = "./data/smarthome_data/train_complex.json"
+file_path = "./data/smarthome_data/train_complex_1000.json"
 import os
 os.makedirs(os.path.dirname(file_path), exist_ok=True)
 

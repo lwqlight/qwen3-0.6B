@@ -4,13 +4,13 @@ import re
 import time
 
 # --- 配置 ---
-# 指向你刚才生成的 gguf 文件
+#  gguf 文件
 model_path = "./finetune_model/qwen3_0.6B_q4_k_m.gguf" 
 UNIFIED_INSTRUCTION = "智能家居中控：提取用户指令中的实体与意图，输出标准的JSON控制代码。"
 
 # --- 加载模型 ---
 # n_ctx: 上下文长度，设为 1024 或 2048
-# n_gpu_layers: 如果你有显卡，设为 -1 表示全扔进显卡；如果是纯 CPU，设为 0
+# n_gpu_layers: 如果有显卡，设为 -1 表示全扔进显卡；如果是纯 CPU，设为 0
 print("正在加载 GGUF 模型...")
 llm = Llama(
     model_path=model_path,
