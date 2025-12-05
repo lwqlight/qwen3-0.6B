@@ -9,7 +9,7 @@ EXCEL_FILE_PATH = "human_data.xlsx" # 你的Excel文件路径
 OUTPUT_FILE_PATH = "./data/smarthome_data/train_hybrid.json"
 
 # ==========================================
-# 模块 1: 处理人工 Excel 数据 (核心新增)
+# 模块 1: 处理人工 Excel 数据 (核心新增)  需要先使用auto_excel_label.py将真实用户给的指令excel生成训练数据格式
 # ==========================================
 def load_human_data_from_excel(file_path):
     print(f"📂 正在读取人工标注数据: {file_path} ...")

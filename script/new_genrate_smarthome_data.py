@@ -91,7 +91,8 @@ for _ in range(CCT_SAMPLES):
     bright_txt, bright_val = random.choice(brightness_words)
     
     # 组合语料： "把卧室吸顶灯调成暖光，并且调暗一点"
-    connectors = ["，同时", "，并且", "，而且", "，顺便", "，再", "，还要"]
+    connectors = ["，同时", "，并且", "，而且", "，顺便",
+                   "，再", "，还要", "， 和", "，以及", ", 然后"]
     input_text = f"把{room}的{device}调成{color}{random.choice(connectors)}{bright_txt}。"
     
     # 输出 JSON 列表：包含两个动作
@@ -108,7 +109,8 @@ for _ in range(CCT_SAMPLES):
 
 # --- 第三部分：[高难度] 2-5 个任务的复杂长指令 (200条) ---
 # 逻辑：随机抽取 N 个任务，拼接句子，合并列表
-connectors = ["，然后", "，接着", "，", "，还要", "，别忘了", "，同时"]
+connectors = ["，然后", "，接着", "，", "，还要",
+               "，别忘了", "，同时", "，再", "，顺便", "，并且"]
 
 for _ in range(COMPLEX_SAMPLES):
     # 随机决定任务数量：2 到 5 个
@@ -157,7 +159,8 @@ print(f"Input: {cct_sample['input']}")
 print(f"Output: {cct_sample['output']}")
 
 print("\n--- 示例：多任务 (3个以上) ---")
-# 找一个 output 是长列表的样本
+# 找一个 output 是长列表的样本 
 multi_sample = next(d for d in dataset if d['output'].count('{') >= 3)
 print(f"Input: {multi_sample['input']}")
 print(f"Output: {multi_sample['output']}")
+print("\n=========================================\n")
