@@ -14,7 +14,7 @@ UNIFIED_INSTRUCTION = "智能家居中控：提取用户指令中的实体与意
 print("正在加载 GGUF 模型...")
 llm = Llama(
     model_path=model_path,
-    n_ctx=2048, 
+    n_ctx=2048,   # 1024 或 2048
     n_gpu_layers=0, # 0表示纯CPU运行，适合树莓派
     verbose=False   # 关闭底层日志
 )
@@ -54,7 +54,7 @@ def predict(user_input):
 
 # --- 测试 ---
 print("\n=== GGUF 端侧推理测试 ===\n")
-user_text = "把客厅灯关了，顺便打开空调"
+user_text = "把客厅灯关了，顺便打开空调，再播放一些轻音乐。"
 print(f"指令: {user_text}")
 
 result = predict(user_text)
